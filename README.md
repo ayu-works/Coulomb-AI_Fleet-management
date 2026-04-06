@@ -2,12 +2,13 @@
 
 Welcome to the Coulomb AI Fleet Management repository. 
 
-This repository contains the primary codebase for the project, including the Fleet Dashboard application.
+This repository contains the primary codebase and associated materials for the project.
 
 ## Directory Structure
 
 - `fleet-dashboard/`: The Next.js dashboard application for managing EV fleets.
-- `Reference/`: Contains source layouts and other reference documents.
+- `blr_fleet_200.csv`: Data file containing Bangalore fleet information constraint parameters and sample data.
+- `coloumb_ai_project_brief.md`: Detailed project brief and core requirements documentation.
 
 ## Getting Started
 
