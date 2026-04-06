@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Fleet — Financial Health Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0f11;
+    --bg2: #141518;
+    --bg3: #1a1c20;
+    --bg4: #1f2126;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8e6e0;
+    --text2: #9a9790;
+    --text3: #5a5855;
+    --green: #2ecc8a;
+    --green-dim: rgba(46,204,138,0.12);
+    --amber: #f0a832;
+    --amber-dim: rgba(240,168,50,0.12);
+    --red: #e05555;
+    --red-dim: rgba(224,85,85,0.12);
+    --blue: #4a9de0;
+    --blue-dim: rgba(74,157,224,0.1);
+    --accent: #4a9de0;
+    --font: 'Sora', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  html { font-size: 14px; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; overflow-x: hidden; }
+
+  /* Layout */
+  .shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--bg2); border-right: 1px solid var(--border); padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
+  .main { padding: 28px 32px; overflow: hidden; }
+
+  /* Sidebar */
+  .logo { padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .logo-mark { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; color: var(--text3); margin-bottom: 4px; }
+  .logo-title { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.2; }
+  .logo-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  .nav-label { font-size: 10px; letter-spacing: 0.1em; color: var(--text3); padding: 0 20px; margin-bottom: 8px; margin-top: 4px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; color: var(--text2); cursor: pointer; border-left: 2px solid transparent; transition: all 0.15s; }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--blue-dim); }
+  .nav-icon { width: 16px; height: 16px; opacity: 0.7; }
+
+  .sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); }
+  .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); margin-right: 6px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
+
+  /* Page header */
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+  .page-title { font-size: 22px; font-weight: 600; color: var(--text); line-height: 1; }
+  .page-sub { font-size: 12px; color: var(--text3); margin-top: 5px; font-family: var(--mono); }
+  .header-controls { display: flex; gap: 10px; align-items: center; }
+
+  select, input[type=text] {
+    background: var(--bg3); border: 1px solid var(--border2); color: var(--text);
+    border-radius: 6px; padding: 7px 12px; font-size: 12px; font-family: var(--font);
+    outline: none; cursor: pointer; transition: border-color 0.15s;
+  }
+  select:hover, input[type=text]:hover { border-color: rgba(255,255,255,0.2); }
+  select:focus, input[type=text]:focus { border-color: var(--accent); }
+  input[type=text]::placeholder { color: var(--text3); }
+
+  /* KPI cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+  .kpi { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; position: relative; overflow: hidden; transition: border-color 0.2s; }
+  .kpi:hover { border-color: var(--border2); }
+  .kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+  .kpi.kpi-blue::before { background: var(--blue); }
+  .kpi.kpi-green::before { background: var(--green); }
+  .kpi.kpi-amber::before { background: var(--amber); }
+  .kpi.kpi-red::before { background: var(--red); }
+  .kpi.kpi-purple::before { background: #a78bfa; }
+  .kpi-label { font-size: 10px; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 8px; }
+  .kpi-value { font-size: 24px; font-weight: 600; color: var(--text); font-family: var(--mono); line-height: 1; }
+  .kpi-sub { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  .kpi-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 20px; margin-top: 6px; }
+  .badge-green { background: var(--green-dim); color: var(--green); }
+  .badge-red { background: var(--red-dim); color: var(--red); }
+  .badge-amber { background: var(--amber-dim); color: var(--amber); }
+
+  /* Chart row */
+  .chart-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+  .chart-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .chart-card.wide { grid-column: span 1; }
+  .card-header { margin-bottom: 14px; }
+  .card-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .card-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+  .leg-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Second chart row */
+  .chart-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+
+  /* Table section */
+  .table-section { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .table-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
+  .toolbar-left { display: flex; align-items: center; gap: 10px; }
+  .toolbar-right { display: flex; align-items: center; gap: 8px; }
+  .table-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .bus-count { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  .filter-pills { display: flex; gap: 6px; }
+  .fpill { padding: 5px 12px; border-radius: 20px; font-size: 11px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text2); font-family: var(--font); transition: all 0.15s; }
+  .fpill:hover { border-color: var(--border2); color: var(--text); }
+  .fpill.active { background: var(--blue-dim); border-color: var(--accent); color: var(--accent); }
+  .fpill.f-green.active { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+  .fpill.f-amber.active { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
+  .fpill.f-red.active { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+
+  .table-wrap { overflow-y: auto; max-height: 420px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { position: sticky; top: 0; background: var(--bg4); padding: 10px 14px; font-size: 10px; letter-spacing: 0.08em; color: var(--text3); text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+  thead th:hover { color: var(--text2); }
+  thead th.sorted { color: var(--accent); }
+  thead th .sort-arrow { margin-left: 4px; opacity: 0.5; }
+  thead th.sorted .sort-arrow { opacity: 1; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; cursor: pointer; }
+  tbody tr:hover { background: rgba(255,255,255,0.025); }
+  tbody tr.selected { background: var(--blue-dim) !important; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody td { padding: 10px 14px; font-size: 12px; color: var(--text); white-space: nowrap; }
+  tbody td.mono { font-family: var(--mono); }
+
+  .soh-bar { display: flex; align-items: center; gap: 8px; }
+  .soh-track { width: 60px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; flex-shrink: 0; }
+  .soh-fill { height: 4px; border-radius: 2px; }
+  .soh-val { font-family: var(--mono); font-size: 11px; }
+
+  .tag { display: inline-block; font-size: 10px; font-weight: 500; padding: 3px 8px; border-radius: 20px; font-family: var(--mono); }
+  .tag-green { background: var(--green-dim); color: var(--green); }
+  .tag-amber { background: var(--amber-dim); color: var(--amber); }
+  .tag-red { background: var(--red-dim); color: var(--red); }
+
+  /* Pagination */
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-top: 1px solid var(--border); }
+  .page-info { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .page-btns { display: flex; gap: 6px; }
+  .page-btn { padding: 5px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text2); font-family: var(--font); transition: all 0.15s; }
+  .page-btn:hover:not(:disabled) { border-color: var(--border2); color: var(--text); }
+  .page-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* Detail panel */
+  .detail-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .detail-panel { background: var(--bg3); border: 1px solid var(--accent); border-radius: 10px; padding: 18px; display: none; }
+  .detail-panel.visible { display: block; }
+  .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .detail-name { font-size: 18px; font-weight: 600; font-family: var(--mono); color: var(--accent); }
+  .detail-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 0; line-height: 1; }
+  .detail-close:hover { color: var(--text); }
+  .detail-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .detail-stat { background: var(--bg4); border-radius: 6px; padding: 10px 12px; }
+  .detail-stat-label { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
+  .detail-stat-val { font-size: 15px; font-weight: 500; font-family: var(--mono); color: var(--text); }
+
+  /* Histogram */
+  .dist-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+  .section-divider { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .section-divider-title { font-size: 10px; letter-spacing: 0.12em; color: var(--text3); }
+  .section-divider-line { flex: 1; height: 1px; background: var(--border); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">FLEET OPS</div>
+      <div class="logo-title">Financial Health</div>
+      <div class="logo-sub">EV Battery Intelligence</div>
+    </div>
+
+    <div class="nav-label">VIEWS</div>
+    <div class="nav-item active" onclick="setNav(this,'overview')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" opacity="0.7"/><rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" opacity="0.4"/><rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.4"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.4"/></svg>
+      Overview
+    </div>
+    <div class="nav-item" onclick="setNav(this,'fleet')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="2" rx="1" fill="currentColor" opacity="0.7"/><rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor" opacity="0.5"/><rect x="1" y="11" width="10" height="2" rx="1" fill="currentColor" opacity="0.3"/></svg>
+      Fleet Table
+    </div>
+
+    <div class="nav-label" style="margin-top:12px">FILTER BY HEALTH</div>
+    <div class="nav-item" id="nav-healthy" onclick="sidebarFilter('healthy')">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;display:inline-block"></span>
+      Healthy ≥85%
+      <span id="cnt-healthy" style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text3)"></span>
+    </div>
+    <div class="nav-item" id="nav-moderate" onclick="sidebarFilter('moderate')">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;display:inline-block"></span>
+      Moderate 75–84%
+      <span id="cnt-moderate" style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text3)"></span>
+    </div>
+    <div class="nav-item" id="nav-critical" onclick="sidebarFilter('critical')">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;display:inline-block"></span>
+      Critical &lt;75%
+      <span id="cnt-critical" style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text3)"></span>
+    </div>
+
+    <div class="nav-label" style="margin-top:12px">DEPOT</div>
+    <div id="depot-nav"></div>
+
+    <div class="sidebar-footer">
+      <div><span class="status-dot"></span>Live simulation</div>
+      <div style="margin-top:4px">1,000 assets tracked</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Fleet Financial Health</div>
+        <div class="page-sub" id="last-updated">— 1,000 buses · Updated just now</div>
+      </div>
+      <div class="header-controls">
+        <input type="text" id="search" placeholder="Search bus ID, depot..." oninput="applyFilters()" style="width:200px">
+        <select id="periodSel" onchange="rebuildAll()">
+          <option value="12">Last 12 months</option>
+          <option value="6">Last 6 months</option>
+          <option value="3">Last 3 months</option>
+        </select>
+        <select id="sortSel" onchange="applyFilters()">
+          <option value="id">Sort: Bus ID</option>
+          <option value="soh_desc">Sort: SOH ↓</option>
+          <option value="soh_asc">Sort: SOH ↑</option>
+          <option value="pnl_desc">Sort: P&L ↓</option>
+          <option value="pnl_asc">Sort: P&L ↑</option>
+          <option value="rev_desc">Sort: Revenue ↓</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="kpi-grid">
+      <div class="kpi kpi-green">
+        <div class="kpi-label">TOTAL NET P&L</div>
+        <div class="kpi-value" id="kpi-pnl">—</div>
+        <div class="kpi-sub">Revenue minus operating cost</div>
+        <div class="kpi-badge badge-green" id="kpi-pnl-badge">—</div>
+      </div>
+      <div class="kpi kpi-blue">
+        <div class="kpi-label">TOTAL REVENUE</div>
+        <div class="kpi-value" id="kpi-rev">—</div>
+        <div class="kpi-sub" id="kpi-rev-sub">—</div>
+      </div>
+      <div class="kpi kpi-amber">
+        <div class="kpi-label">OPERATING COST</div>
+        <div class="kpi-value" id="kpi-cost">—</div>
+        <div class="kpi-sub">Energy @ ₹9.5/kWh</div>
+      </div>
+      <div class="kpi kpi-red">
+        <div class="kpi-label">TOTAL ASSET VALUE</div>
+        <div class="kpi-value" id="kpi-asset">—</div>
+        <div class="kpi-sub" id="kpi-asset-sub">—</div>
+      </div>
+      <div class="kpi kpi-purple">
+        <div class="kpi-label">FLEET AVG SOH</div>
+        <div class="kpi-value" id="kpi-soh">—</div>
+        <div class="kpi-sub" id="kpi-soh-sub">—</div>
+        <div class="kpi-badge" id="kpi-soh-badge">—</div>
+      </div>
+    </div>
+
+    <!-- Charts row 1 -->
+    <div class="section-divider"><div class="section-divider-title">PERFORMANCE TRENDS</div><div class="section-divider-line"></div></div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-title">P&L vs Asset Depreciation</div>
+          <div class="card-sub">Monthly fleet aggregates — revenue, cost, net P&L, asset value</div>
+        </div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#4a9de0"></div>Revenue</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#e05555"></div>Op. cost</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#2ecc8a"></div>Net P&L</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#5a5855;border:1px dashed #9a9790"></div>Asset value</div>
+        </div>
+        <div class="chart-wrap" style="height:220px"><canvas id="pnlChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-title">SOH Distribution</div>
+          <div class="card-sub">Bus count by battery health band</div>
+        </div>
+        <div class="chart-wrap" style="height:250px"><canvas id="sohDistChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-title">Depreciation Curve</div>
+          <div class="card-sub">Asset value erosion from 100%→70% SOH</div>
+        </div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#9a9790"></div>Asset value</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#e05555"></div>Depr. rate</div>
+        </div>
+        <div class="chart-wrap" style="height:220px"><canvas id="deprChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Charts row 2 -->
+    <div class="section-divider"><div class="section-divider-title">ASSET ANALYTICS</div><div class="section-divider-line"></div></div>
+    <div class="chart-row2">
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-title">SOH vs Energy Efficiency</div>
+          <div class="card-sub">Each dot = one bus. Lower SOH → higher energy use per km.</div>
+        </div>
+        <div class="chart-wrap" style="height:220px"><canvas id="scatterChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-title">Revenue vs Operating Cost by Depot</div>
+          <div class="card-sub">Grouped bar comparison across depots</div>
+        </div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#4a9de0"></div>Revenue</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#e05555"></div>Op. cost</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#2ecc8a"></div>Net P&L</div>
+        </div>
+        <div class="chart-wrap" style="height:220px"><canvas id="depotChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-header">
+        <div class="detail-name" id="detailName">—</div>
+        <button class="detail-close" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="detail-grid" id="detailGrid"></div>
+      <div class="chart-wrap" style="height:160px;margin-top:8px"><canvas id="detailChart"></canvas></div>
+    </div>
+
+    <!-- Fleet Table -->
+    <div class="section-divider"><div class="section-divider-title">FLEET ROSTER</div><div class="section-divider-line"></div></div>
+    <div class="table-section">
+      <div class="table-toolbar">
+        <div class="toolbar-left">
+          <div class="table-title">All Buses</div>
+          <div class="bus-count" id="tableCount">— buses</div>
+        </div>
+        <div class="toolbar-right">
+          <div class="filter-pills">
+            <button class="fpill active" onclick="setFilter(this,'all')">All</button>
+            <button class="fpill f-green" onclick="setFilter(this,'healthy')">Healthy</button>
+            <button class="fpill f-amber" onclick="setFilter(this,'moderate')">Moderate</button>
+            <button class="fpill f-red" onclick="setFilter(this,'critical')">Critical</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="setSortCol('id')">BUS ID <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('depot')">DEPOT <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('soh')">SOH <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('kmday')">KM/DAY <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('odometer')">ODOMETER <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('energykm')">ENERGY/KM <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('rev')">REVENUE <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('cost')">OP. COST <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('pnl')">NET P&L <span class="sort-arrow">↕</span></th>
+              <th onclick="setSortCol('assetval')">ASSET VALUE <span class="sort-arrow">↕</span></th>
+              <th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <div class="page-info" id="pageInfo">—</div>
+        <div class="page-btns">
+          <button class="page-btn" id="prevBtn" onclick="changePage(-1)">← Prev</button>
+          <span id="pageNums" style="display:flex;gap:4px"></span>
+          <button class="page-btn" id="nextBtn" onclick="changePage(1)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const DEPOTS = ['North','South','East','West','Central','Outer'];
+const PRICE_KWH = 9.5;
+const REV_PER_KM = 8.5;
+const INIT_VAL = 2800000;
+const ROWS_PER_PAGE = 25;
+
+let allBuses = [];
+let filteredBuses = [];
+let currentPage = 1;
+let currentFilter = 'all';
+let currentSortCol = 'id';
+let currentSortDir = 1;
+let sidebarHealthFilter = null;
+let sidebarDepotFilter = null;
+let detailBusChart = null;
+let pnlChartInst, sohDistInst, deprChartInst, scatterInst, depotChartInst;
+
+function rnd(min, max) { return min + Math.random() * (max - min); }
+function rndInt(min, max) { return Math.floor(rnd(min, max+1)); }
+
+function generateFleet() {
+  const buses = [];
+  for (let i = 1; i <= 1000; i++) {
+    const soh = Math.round(rnd(70, 100) * 10) / 10;
+    const kmDay = rndInt(80, 220);
+    const depot = DEPOTS[Math.floor(i / 167)] || DEPOTS[5];
+    const ageMonths = rndInt(6, 48);
+    const odometer = Math.round(kmDay * ageMonths * 30 * rnd(0.88, 1.12));
+    const energyKm = +(1.0 + (100 - soh) / 100 * 0.8 + rnd(-0.04, 0.04)).toFixed(3);
+    buses.push({ id: 'EV-' + String(i).padStart(4,'0'), soh, kmDay, depot, odometer, energyKm, ageMonths });
+  }
+  return buses;
+}
+
+function calcBus(b, months) {
+  const days = months * 30;
+  const kmTotal = b.kmDay * days;
+  const rev = kmTotal * REV_PER_KM;
+  const cost = kmTotal * b.energyKm * PRICE_KWH;
+  const pnl = rev - cost;
+  const sohDrop = 100 - b.soh;
+  const deprFrac = sohDrop / 30;
+  const assetVal = INIT_VAL * (1 - deprFrac * 0.9);
+  return { rev, cost, pnl, assetVal, kmTotal };
+}
+
+function fmtCr(n) {
+  const abs = Math.abs(n);
+  let s;
+  if (abs >= 10000000) s = '₹' + (abs/10000000).toFixed(2) + ' Cr';
+  else if (abs >= 100000) s = '₹' + (abs/100000).toFixed(1) + 'L';
+  else s = '₹' + Math.round(abs).toLocaleString('en-IN');
+  return n < 0 ? '-' + s : s;
+}
+
+function fmtL(n) { return '₹' + (Math.abs(n)/100000).toFixed(1) + 'L'; }
+
+function healthClass(soh) {
+  if (soh >= 85) return 'healthy';
+  if (soh >= 75) return 'moderate';
+  return 'critical';
+}
+
+function healthTag(soh) {
+  const h = healthClass(soh);
+  const map = { healthy:['tag-green','Healthy'], moderate:['tag-amber','Moderate'], critical:['tag-red','Critical'] };
+  return `<span class="tag ${map[h][0]}">${map[h][1]}</span>`;
+}
+
+function sohBar(soh) {
+  const pct = ((soh - 70) / 30 * 100).toFixed(1);
+  const col = soh >= 85 ? 'var(--green)' : soh >= 75 ? 'var(--amber)' : 'var(--red)';
+  return `<div class="soh-bar">
+    <div class="soh-track"><div class="soh-fill" style="width:${pct}%;background:${col}"></div></div>
+    <span class="soh-val" style="color:${col}">${soh.toFixed(1)}%</span>
+  </div>`;
+}
+
+function buildKPIs(buses, months) {
+  let totRev=0, totCost=0, totPnl=0, totAsset=0, totSoh=0;
+  buses.forEach(b => {
+    const d = calcBus(b, months);
+    totRev += d.rev; totCost += d.cost; totPnl += d.pnl; totAsset += d.assetVal; totSoh += b.soh;
+  });
+  const avgSoh = totSoh / buses.length;
+  const margin = ((totPnl / totRev) * 100).toFixed(1);
+
+  document.getElementById('kpi-pnl').textContent = fmtCr(totPnl);
+  document.getElementById('kpi-pnl-badge').textContent = margin + '% margin';
+  document.getElementById('kpi-pnl-badge').className = 'kpi-badge ' + (totPnl >= 0 ? 'badge-green' : 'badge-red');
+  document.getElementById('kpi-rev').textContent = fmtCr(totRev);
+  document.getElementById('kpi-rev-sub').textContent = buses.reduce((a,b)=>a+b.kmDay*months*30,0).toLocaleString('en-IN') + ' km driven';
+  document.getElementById('kpi-cost').textContent = fmtCr(totCost);
+  document.getElementById('kpi-asset').textContent = fmtCr(totAsset);
+  document.getElementById('kpi-asset-sub').textContent = 'Depn from ₹' + fmtCr(buses.length * INIT_VAL) + ' orig.';
+  document.getElementById('kpi-soh').textContent = avgSoh.toFixed(1) + '%';
+  const h = healthClass(avgSoh);
+  document.getElementById('kpi-soh-sub').textContent = buses.length + ' buses in view';
+  const badgeMap = { healthy:['badge-green','Fleet Healthy'], moderate:['badge-amber','Moderate Wear'], critical:['badge-red','High Wear'] };
+  document.getElementById('kpi-soh-badge').className = 'kpi-badge ' + badgeMap[h][0];
+  document.getElementById('kpi-soh-badge').textContent = badgeMap[h][1];
+
+  const counts = { healthy: buses.filter(b=>b.soh>=85).length, moderate: buses.filter(b=>b.soh>=75&&b.soh<85).length, critical: buses.filter(b=>b.soh<75).length };
+  document.getElementById('cnt-healthy').textContent = counts.healthy;
+  document.getElementById('cnt-moderate').textContent = counts.moderate;
+  document.getElementById('cnt-critical').textContent = counts.critical;
+}
+
+function buildPnLChart(buses, months) {
+  const labels = [], rev = [], cost = [], pnl = [], asset = [];
+  for (let m = 1; m <= months; m++) {
+    labels.push('M' + m);
+    let r=0,c=0,a=0;
+    buses.forEach(b => {
+      const d = calcBus(b, m);
+      r += d.rev / m;
+      c += d.cost / m;
+      a += d.assetVal;
+    });
+    rev.push(Math.round(r));
+    cost.push(Math.round(c));
+    pnl.push(Math.round(r - c));
+    asset.push(Math.round(a / 100));
+  }
+  if (pnlChartInst) pnlChartInst.destroy();
+  pnlChartInst = new Chart(document.getElementById('pnlChart'), {
+    type:'line',
+    data:{ labels, datasets:[
+      {label:'Revenue',data:rev,borderColor:'#4a9de0',backgroundColor:'rgba(74,157,224,0.08)',fill:true,tension:0.4,pointRadius:0,borderWidth:2},
+      {label:'Op cost',data:cost,borderColor:'#e05555',backgroundColor:'rgba(224,85,85,0.06)',fill:true,tension:0.4,pointRadius:0,borderWidth:2},
+      {label:'Net P&L',data:pnl,borderColor:'#2ecc8a',backgroundColor:'rgba(46,204,138,0.08)',fill:true,tension:0.4,pointRadius:0,borderWidth:2},
+      {label:'Asset',data:asset.map(v=>v*100),borderColor:'#5a5855',tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],fill:false},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:ctx=>' '+fmtCr(ctx.raw)}}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:10,family:'DM Mono'},color:'#5a5855',maxTicksLimit:8}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:10,family:'DM Mono'},color:'#5a5855',callback:v=>fmtCr(v)}}
+      }
+    }
+  });
+}
+
+function buildSOHDist(buses) {
+  const bands = [
+    {label:'70–74%',min:70,max:75,color:'#e05555'},
+    {label:'75–79%',min:75,max:80,color:'#f0a832'},
+    {label:'80–84%',min:80,max:85,color:'#f0a832'},
+    {label:'85–89%',min:85,max:90,color:'#2ecc8a'},
+    {label:'90–94%',min:90,max:95,color:'#2ecc8a'},
+    {label:'95–100%',min:95,max:101,color:'#4a9de0'},
+  ];
+  const counts = bands.map(b => buses.filter(bus => bus.soh >= b.min && bus.soh < b.max).length);
+  if (sohDistInst) sohDistInst.destroy();
+  sohDistInst = new Chart(document.getElementById('sohDistChart'), {
+    type:'bar',
+    data:{labels:bands.map(b=>b.label),datasets:[{data:counts,backgroundColor:bands.map(b=>b.color+'bb'),borderRadius:4,borderSkipped:false}]},
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw+' buses'}}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:10,family:'DM Mono'},color:'#5a5855',callback:v=>v+' buses'}},
+        y:{grid:{display:false},ticks:{font:{size:10,family:'DM Mono'},color:'#9a9790'}}
+      }
+    }
+  });
+}
+
+function buildDeprChart() {
+  const points = [100,97,94,91,88,85,82,79,76,73,70];
+  const vals = points.map(s => { const f=(100-s)/30; return +(INIT_VAL*(1-f*0.9)/100000).toFixed(1); });
+  const rates = points.map((s,i)=> i===0 ? 0 : +(vals[i-1]-vals[i]).toFixed(2));
+  if (deprChartInst) deprChartInst.destroy();
+  deprChartInst = new Chart(document.getElementById('deprChart'), {
+    type:'line',
+    data:{labels:points.map(s=>s+'%'),datasets:[
+      {label:'Asset value (₹L)',data:vals,borderColor:'#9a9790',backgroundColor:'rgba(154,151,144,0.07)',fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#9a9790',borderWidth:2,yAxisID:'y'},
+      {label:'Depr rate',data:rates,borderColor:'#e05555',tension:0.3,pointRadius:3,pointBackgroundColor:'#e05555',borderWidth:1.5,borderDash:[3,3],fill:false,yAxisID:'y2'}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:10,family:'DM Mono'},color:'#5a5855'},title:{display:true,text:'SOH',color:'#5a5855',font:{size:9}}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:10,family:'DM Mono'},color:'#9a9790',callback:v=>'₹'+v+'L'}},
+        y2:{position:'right',ticks:{font:{size:10,family:'DM Mono'},color:'#e05555',callback:v=>'₹'+v+'L'},grid:{display:false}}
+      }
+    }
+  });
+}
+
+function buildScatter(buses) {
+  const sample = buses.length > 300 ? buses.filter((_,i)=>i%3===0) : buses;
+  const cols = { healthy:'rgba(46,204,138,0.5)', moderate:'rgba(240,168,50,0.5)', critical:'rgba(224,85,85,0.5)' };
+  const data = sample.map(b=>({x:b.soh,y:b.energyKm,label:b.id,health:healthClass(b.soh)}));
+  if (scatterInst) scatterInst.destroy();
+  scatterInst = new Chart(document.getElementById('scatterChart'), {
+    type:'scatter',
+    data:{datasets:[
+      {label:'Healthy',data:data.filter(d=>d.health==='healthy'),backgroundColor:cols.healthy,pointRadius:3},
+      {label:'Moderate',data:data.filter(d=>d.health==='moderate'),backgroundColor:cols.moderate,pointRadius:3},
+      {label:'Critical',data:data.filter(d=>d.health==='critical'),backgroundColor:cols.red,pointRadius:3,backgroundColor:'rgba(224,85,85,0.5)'},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      layout:{padding:{top:8,right:8,bottom:4,left:4}},
+      plugins:{legend:{display:true,labels:{font:{size:10,family:'DM Mono'},color:'#9a9790',boxWidth:8,boxHeight:8}},tooltip:{callbacks:{label:ctx=>ctx.raw.label+': SOH '+ctx.raw.x.toFixed(1)+'% | '+ctx.raw.y.toFixed(3)+' kWh/km'}}},
+      scales:{
+        x:{min:68,max:102,grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:10,family:'DM Mono'},color:'#5a5855'},title:{display:true,text:'SOH (%)',color:'#5a5855',font:{size:9}}},
+        y:{min:0.9,max:1.95,grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:10,family:'DM Mono'},color:'#5a5855',callback:v=>v.toFixed(2)},title:{display:true,text:'kWh/km',color:'#5a5855',font:{size:9}}}
+      }
+    }
+  });
+}
+
+function buildDepotChart(buses, months) {
+  const depotData = {};
+  DEPOTS.forEach(d => { depotData[d] = {rev:0,cost:0,pnl:0,count:0}; });
+  buses.forEach(b => {
+    const d = calcBus(b, months);
+    if (depotData[b.depot]) {
+      depotData[b.depot].rev += d.rev;
+      depotData[b.depot].cost += d.cost;
+      depotData[b.depot].pnl += d.pnl;
+      depotData[b.depot].count++;
+    }
+  });
+  const labels = DEPOTS.filter(d=>depotData[d].count>0);
+  if (depotChartInst) depotChartInst.destroy();
+  depotChartInst = new Chart(document.getElementById('depotChart'), {
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Revenue',data:labels.map(d=>Math.round(depotData[d].rev)),backgroundColor:'rgba(74,157,224,0.7)',borderRadius:3},
+      {label:'Op cost',data:labels.map(d=>Math.round(depotData[d].cost)),backgroundColor:'rgba(224,85,85,0.7)',borderRadius:3},
+      {label:'Net P&L',data:labels.map(d=>Math.round(depotData[d].pnl)),backgroundColor:'rgba(46,204,138,0.7)',borderRadius:3},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:ctx=>' '+ctx.dataset.label+': '+fmtCr(ctx.raw)}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10,family:'DM Mono'},color:'#9a9790'}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:10,family:'DM Mono'},color:'#5a5855',callback:v=>fmtCr(v)}}
+      }
+    }
+  });
+}
+
+function buildTable() {
+  const months = parseInt(document.getElementById('periodSel').value);
+  const start = (currentPage-1)*ROWS_PER_PAGE;
+  const end = Math.min(start+ROWS_PER_PAGE, filteredBuses.length);
+  const pageData = filteredBuses.slice(start, end);
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  pageData.forEach(b => {
+    const d = calcBus(b, months);
+    const pnlColor = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono" style="font-weight:500;color:var(--accent)">${b.id}</td>
+      <td>${b.depot}</td>
+      <td>${sohBar(b.soh)}</td>
+      <td class="mono">${b.kmDay}</td>
+      <td class="mono">${(b.odometer/1000).toFixed(1)}k</td>
+      <td class="mono">${b.energyKm.toFixed(3)}</td>
+      <td class="mono">${fmtL(d.rev)}</td>
+      <td class="mono">${fmtL(d.cost)}</td>
+      <td class="mono" style="color:${pnlColor}">${fmtL(d.pnl)}</td>
+      <td class="mono">${fmtL(d.assetVal)}</td>
+      <td>${healthTag(b.soh)}</td>`;
+    tr.onclick = () => showDetail(b);
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('tableCount').textContent = filteredBuses.length.toLocaleString() + ' buses';
+  document.getElementById('pageInfo').textContent = `Showing ${start+1}–${end} of ${filteredBuses.length}`;
+
+  document.getElementById('prevBtn').disabled = currentPage === 1;
+  const totalPages = Math.ceil(filteredBuses.length / ROWS_PER_PAGE);
+  document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+
+  const pageNums = document.getElementById('pageNums');
+  pageNums.innerHTML = '';
+  const visPages = [];
+  if (totalPages <= 7) { for (let i=1;i<=totalPages;i++) visPages.push(i); }
+  else {
+    visPages.push(1);
+    if (currentPage > 3) visPages.push('...');
+    for (let i=Math.max(2,currentPage-1);i<=Math.min(totalPages-1,currentPage+1);i++) visPages.push(i);
+    if (currentPage < totalPages-2) visPages.push('...');
+    visPages.push(totalPages);
+  }
+  visPages.forEach(p => {
+    if (p === '...') { const s = document.createElement('span'); s.textContent='…'; s.style.cssText='color:var(--text3);padding:5px 4px;font-size:11px'; pageNums.appendChild(s); }
+    else {
+      const btn = document.createElement('button');
+      btn.className = 'page-btn';
+      btn.textContent = p;
+      if (p === currentPage) btn.style.cssText='border-color:var(--accent);color:var(--accent);background:var(--blue-dim)';
+      btn.onclick = () => { currentPage = p; buildTable(); };
+      pageNums.appendChild(btn);
+    }
+  });
+}
+
+function applyFilters() {
+  const months = parseInt(document.getElementById('periodSel').value);
+  const search = document.getElementById('search').value.toLowerCase();
+  const sortSel = document.getElementById('sortSel').value;
+
+  let buses = [...allBuses];
+
+  if (sidebarHealthFilter) buses = buses.filter(b => healthClass(b.soh) === sidebarHealthFilter);
+  if (sidebarDepotFilter) buses = buses.filter(b => b.depot === sidebarDepotFilter);
+  if (currentFilter !== 'all') buses = buses.filter(b => healthClass(b.soh) === currentFilter);
+  if (search) buses = buses.filter(b => b.id.toLowerCase().includes(search) || b.depot.toLowerCase().includes(search));
+
+  const sortMap = {
+    'id': (a,b)=>a.id.localeCompare(b.id),
+    'soh_desc': (a,b)=>b.soh-a.soh,
+    'soh_asc': (a,b)=>a.soh-b.soh,
+    'pnl_desc': (a,b)=>calcBus(b,months).pnl-calcBus(a,months).pnl,
+    'pnl_asc': (a,b)=>calcBus(a,months).pnl-calcBus(b,months).pnl,
+    'rev_desc': (a,b)=>calcBus(b,months).rev-calcBus(a,months).rev,
+  };
+  buses.sort(sortMap[sortSel] || sortMap['id']);
+
+  filteredBuses = buses;
+  currentPage = 1;
+  buildTable();
+}
+
+function setSortCol(col) {
+  document.getElementById('sortSel').value = col+'_desc';
+  applyFilters();
+}
+
+function setFilter(el, val) {
+  document.querySelectorAll('.fpill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  currentFilter = val;
+  sidebarHealthFilter = null;
+  sidebarDepotFilter = null;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  applyFilters();
+}
+
+function sidebarFilter(health) {
+  sidebarHealthFilter = health;
+  sidebarDepotFilter = null;
+  currentFilter = 'all';
+  document.querySelectorAll('.fpill').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item[id^=nav-]').forEach(n=>n.classList.remove('active'));
+  document.getElementById('nav-'+health).classList.add('active');
+  applyFilters();
+}
+
+function setNav(el, view) {
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  if (view === 'fleet') {
+    document.querySelector('.table-section').scrollIntoView({behavior:'smooth'});
+  } else {
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+}
+
+function showDetail(b) {
+  const months = parseInt(document.getElementById('periodSel').value);
+  const d = calcBus(b, months);
+  document.getElementById('detailName').textContent = b.id + ' · ' + b.depot;
+  document.getElementById('detailPanel').classList.add('visible');
+
+  const items = [
+    {label:'SOH', val: b.soh.toFixed(1)+'%'},
+    {label:'KM/Day', val: b.kmDay},
+    {label:'Odometer', val: (b.odometer/1000).toFixed(1)+'k km'},
+    {label:'Energy/km', val: b.energyKm.toFixed(3)+' kWh'},
+    {label:'Revenue', val: fmtL(d.rev)},
+    {label:'Op. Cost', val: fmtL(d.cost)},
+    {label:'Net P&L', val: fmtL(d.pnl)},
+    {label:'Asset Value', val: fmtL(d.assetVal)},
+  ];
+  document.getElementById('detailGrid').innerHTML = items.map(i=>`
+    <div class="detail-stat">
+      <div class="detail-stat-label">${i.label}</div>
+      <div class="detail-stat-val">${i.val}</div>
+    </div>`).join('');
+
+  const mLabels = [], mRev=[], mCost=[], mPnl=[];
+  for (let m=1;m<=months;m++) {
+    mLabels.push('M'+m);
+    const md = calcBus(b, m);
+    mRev.push(Math.round(md.rev/m));
+    mCost.push(Math.round(md.cost/m));
+    mPnl.push(Math.round(md.pnl/m));
+  }
+  if (detailBusChart) detailBusChart.destroy();
+  detailBusChart = new Chart(document.getElementById('detailChart'), {
+    type:'line',
+    data:{labels:mLabels,datasets:[
+      {label:'Revenue',data:mRev,borderColor:'#4a9de0',pointRadius:0,borderWidth:1.5,tension:0.4,fill:false},
+      {label:'Cost',data:mCost,borderColor:'#e05555',pointRadius:0,borderWidth:1.5,tension:0.4,fill:false},
+      {label:'P&L',data:mPnl,borderColor:'#2ecc8a',pointRadius:0,borderWidth:2,tension:0.4,fill:false},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{font:{size:9,family:'DM Mono'},color:'#9a9790',boxWidth:8,boxHeight:8}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9,family:'DM Mono'},color:'#5a5855'}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{size:9,family:'DM Mono'},color:'#5a5855',callback:v=>fmtL(v)}}
+      }
+    }
+  });
+  document.getElementById('detailPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('visible');
+  if (detailBusChart) { detailBusChart.destroy(); detailBusChart=null; }
+}
+
+function buildDepotNav() {
+  const nav = document.getElementById('depot-nav');
+  nav.innerHTML = '';
+  DEPOTS.forEach(depot => {
+    const count = allBuses.filter(b=>b.depot===depot).length;
+    const el = document.createElement('div');
+    el.className = 'nav-item';
+    el.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background:var(--blue);flex-shrink:0;display:inline-block"></span>${depot}<span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text3)">${count}</span>`;
+    el.onclick = () => {
+      sidebarDepotFilter = depot; sidebarHealthFilter = null; currentFilter='all';
+      document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+      el.classList.add('active');
+      document.querySelectorAll('.fpill').forEach(p=>p.classList.remove('active'));
+      applyFilters();
+      const months = parseInt(document.getElementById('periodSel').value);
+      buildKPIs(allBuses.filter(b=>b.depot===depot), months);
+    };
+    nav.appendChild(el);
+  });
+}
+
+function rebuildAll() {
+  const months = parseInt(document.getElementById('periodSel').value);
+  const viewBuses = sidebarDepotFilter ? allBuses.filter(b=>b.depot===sidebarDepotFilter) : allBuses;
+  buildKPIs(viewBuses, months);
+  buildPnLChart(viewBuses, months);
+  buildSOHDist(viewBuses);
+  buildDeprChart();
+  buildScatter(viewBuses);
+  buildDepotChart(viewBuses, months);
+  applyFilters();
+}
+
+function init() {
+  allBuses = generateFleet();
+  filteredBuses = [...allBuses];
+  buildDepotNav();
+  rebuildAll();
+  document.getElementById('last-updated').textContent = '— 1,000 buses · Updated just now';
+}
+
+init();
+</script>
+</body>
+</html>
