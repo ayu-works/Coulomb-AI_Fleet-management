@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ── Light theme (default) ── */
+[data-theme="light"], :root {
+  --bg: #f5f5f7;
+  --bg2: #eeeef0;
+  --bg3: #ffffff;
+  --bg4: #f0f0f2;
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.15);
+  --text: #1a1c20;
+  --text2: #6b6966;
+  --text3: #7a7770;
+  --text4: #999590;
+  --green: #2ecc8a;
+  --green-dim: rgba(46,204,138,0.12);
+  --amber: #f0a832;
+  --amber-dim: rgba(240,168,50,0.12);
+  --red: #e05555;
+  --red-dim: rgba(224,85,85,0.12);
+  --blue: #4a9de0;
+  --blue-dim: rgba(74,157,224,0.1);
+  --purple: #a78bfa;
+  --nav-bg: rgba(255,255,255,0.9);
+  --hover: rgba(0,0,0,0.02);
+  --soh-track: #e8e8ea;
+  --scrollbar: rgba(0,0,0,0.12);
+  --dot-border: #ffffff;
+}
+
+/* ── Dark theme ── */
+[data-theme="dark"] {
+  --bg: #0e0f11;
+  --bg2: #141518;
+  --bg3: #1a1c20;
+  --bg4: #1f2126;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #e8e6e0;
+  --text2: #9a9790;
+  --text3: #8a8780;
+  --text4: #5a5855;
+  --nav-bg: rgba(14,15,17,0.9);
+  --hover: rgba(255,255,255,0.025);
+  --soh-track: rgba(255,255,255,0.08);
+  --scrollbar: rgba(255,255,255,0.1);
+  --dot-border: #141414;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  transition: background 0.2s, color 0.2s;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+
+/* Antd overrides */
+.ant-card { border-color: var(--border) !important; }
+.ant-table-thead > tr > th { text-transform: uppercase !important; font-size: 10px !important; letter-spacing: 0.08em !important; }
+
+.ant-select .ant-select-selector {
+  border-radius: 20px !important;
+  background: var(--bg3) !important;
+  border-color: var(--border2) !important;
+  font-size: 12px !important;
+  color: var(--text) !important;
+}
+.ant-select:hover .ant-select-selector { border-color: var(--border2) !important; }
+.ant-select-focused .ant-select-selector { border-color: var(--blue) !important; }
+.ant-input { font-size: 12px !important; }
+.ant-input::placeholder { color: var(--text4) !important; }
+.ant-input-affix-wrapper {
+  background: var(--bg3) !important;
+  border-radius: 20px !important;
+  border-color: var(--border2) !important;
+}
+.ant-input-affix-wrapper:hover { border-color: var(--border2) !important; }
+.ant-input-affix-wrapper-focused { border-color: var(--blue) !important; }
